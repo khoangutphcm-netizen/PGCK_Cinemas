@@ -96,6 +96,8 @@ public class MovieDetailBottomSheetDialog extends BottomSheetDialogFragment {
         View btnMyList = view.findViewById(R.id.btnMyList);
         View btnRate = view.findViewById(R.id.btnRate);
         View btnShare = view.findViewById(R.id.btnShare);
+        view.findViewById(R.id.tvMatchScore).setVisibility(View.GONE);
+        view.findViewById(R.id.tvAgeRating).setVisibility(View.GONE);
 
         // 1. Cập nhật thông tin tiêu đề và năm phát hành
         if (video != null) {
@@ -145,22 +147,36 @@ public class MovieDetailBottomSheetDialog extends BottomSheetDialogFragment {
         }
         if (btnMyList != null && com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()!=null) {
             TextView savedLabel=view.findViewById(R.id.tvWatchlistLabel);
-            ViewerLibrary.collection("watchlist").document(ViewerLibrary.key(video)).get().addOnSuccessListener(doc->{if(isAdded())savedLabel.setText(doc.exists()?"Đã lưu ✓":"Danh sách");});
+            ViewerLibrary.collection("watchlist").document(ViewerLibrary.key(video)).get().addOnSuccessListener(doc->{if(isAdded())savedLabel.setText(doc.exists()?"Đã lưu ✓":"Xem sau");});
             btnMyList.setOnClickListener(v -> {
                 btnMyList.setEnabled(false);
                 com.google.firebase.firestore.DocumentReference ref=ViewerLibrary.collection("watchlist").document(ViewerLibrary.key(video));
                 ref.get().addOnSuccessListener(doc -> {
                     com.google.android.gms.tasks.Task<Void> task=doc.exists()?ref.delete():ref.set(ViewerLibrary.entry(video));
-                    task.addOnCompleteListener(t->{btnMyList.setEnabled(true);if(t.isSuccessful())savedLabel.setText(doc.exists()?"Danh sách":"Đã lưu ✓");if(isAdded())Toast.makeText(getContext(),t.isSuccessful()?(doc.exists()?"Đã bỏ lưu phim":"Đã lưu phim"):"Không lưu được. Thử lại.",Toast.LENGTH_SHORT).show();});
+                    task.addOnCompleteListener(t->{btnMyList.setEnabled(true);if(t.isSuccessful())savedLabel.setText(doc.exists()?"Xem sau":"Đã lưu ✓");if(isAdded())Toast.makeText(getContext(),t.isSuccessful()?(doc.exists()?"Đã bỏ lưu phim":"Đã lưu phim"):"Không lưu được. Thử lại.",Toast.LENGTH_SHORT).show();});
                 }).addOnFailureListener(e->{btnMyList.setEnabled(true);if(isAdded())Toast.makeText(getContext(),"Không đọc được danh sách đã lưu",Toast.LENGTH_SHORT).show();});
             });
         }
         if (btnRate != null) {
-            btnRate.setOnClickListener(v -> Toast.makeText(getContext(), "Cảm ơn bạn đã đánh giá 👍!", Toast.LENGTH_SHORT).show());
+            btnRate.setOnClickListener(v -> {
+                if(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()==null){startActivity(new Intent(requireContext(),LoginActivity.class));return;}
+                CinemaDialogs.menu((androidx.appcompat.app.AppCompatActivity)requireActivity(),"Cảm nhận của bạn · bấm lại để bỏ",new String[]{"Thích","Không thích"},which->{
+                    btnRate.setEnabled(false);MovieEngagement.react(video,which==0?"like":"dislike").addOnCompleteListener(t->{btnRate.setEnabled(true);if(isAdded()){Toast.makeText(requireContext(),t.isSuccessful()?"Đã cập nhật đánh giá":"Chưa lưu được đánh giá. Kiểm tra Rules.",Toast.LENGTH_SHORT).show();if(t.isSuccessful())refreshEngagement(view);}});
+                });
+            });
         }
         if (btnShare != null) {
-            btnShare.setOnClickListener(v -> Toast.makeText(getContext(), "Chia sẻ liên kết phim...", Toast.LENGTH_SHORT).show());
+            btnShare.setOnClickListener(v -> {Intent share=new Intent(Intent.ACTION_SEND);share.setType("text/plain");share.putExtra(Intent.EXTRA_TEXT,video.getTitle()+" · PCGK Cinema\n"+video.getVideoUrl());startActivity(Intent.createChooser(share,"Chia sẻ phim"));});
         }
+        refreshEngagement(view);
+    }
+    private void refreshEngagement(View view){
+        com.google.firebase.auth.FirebaseUser account=com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if(account!=null)com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("reactions").document(account.getUid()+"_"+video.getId()).get().addOnSuccessListener(doc->{if(!isAdded())return;LinearLayout rate=view.findViewById(R.id.btnRate);((TextView)rate.getChildAt(1)).setText(doc.exists()?("like".equals(doc.getString("value"))?"Đã thích":"Không thích"):"Đánh giá");});
+        TextView info=view.findViewWithTag("engagement");if(info==null){info=new TextView(requireContext());info.setTag("engagement");info.setTextColor(0xffaaaaaa);info.setPadding(0,16,0,16);((LinearLayout)view.findViewById(R.id.tvDetailDescription).getParent()).addView(info);}final TextView target=info;
+        com.google.firebase.firestore.FirebaseFirestore db=com.google.firebase.firestore.FirebaseFirestore.getInstance();
+        com.google.android.gms.tasks.Task<com.google.firebase.firestore.AggregateQuerySnapshot> likes=db.collection("reactions").whereEqualTo("videoId",video.getId()).whereEqualTo("value","like").count().get(com.google.firebase.firestore.AggregateSource.SERVER),dislikes=db.collection("reactions").whereEqualTo("videoId",video.getId()).whereEqualTo("value","dislike").count().get(com.google.firebase.firestore.AggregateSource.SERVER),views=db.collection("viewEvents").whereEqualTo("videoId",video.getId()).count().get(com.google.firebase.firestore.AggregateSource.SERVER);
+        target.setText("Đang tải lượt xem và đánh giá…");com.google.android.gms.tasks.Tasks.whenAllSuccess(likes,dislikes,views).addOnSuccessListener(all->{if(isAdded())target.setText(views.getResult().getCount()+" lượt xem · "+likes.getResult().getCount()+" thích · "+dislikes.getResult().getCount()+" không thích");}).addOnFailureListener(e->{if(isAdded())target.setText("Chưa tải được thống kê tương tác");});
     }
 
     /**

@@ -135,7 +135,16 @@ public class PlayerActivity extends AppCompatActivity {
     private final android.os.Handler viewerHandler=new android.os.Handler(android.os.Looper.getMainLooper());
     private android.os.CountDownTimer nextTimer;
     private androidx.appcompat.app.AlertDialog nextDialog;
-    private final Runnable viewerTick=new Runnable(){public void run(){saveViewerProgress();if(viewerActive)viewerHandler.postDelayed(this,10000);}};
+    private long lastViewTick=0, watchedMillis=0, lastHistoryTick=0;
+    private boolean wasWatching=false, viewRecorded=false, viewPending=false, webWatching=false;
+    private void trackView(){
+        long now=android.os.SystemClock.elapsedRealtime();boolean watching=player!=null?player.isPlaying():webWatching;
+        if(wasWatching&&watching&&lastViewTick>0)watchedMillis+=Math.min(10000,now-lastViewTick);
+        lastViewTick=now;wasWatching=watching;
+        if(watchedMillis<30000||viewRecorded||viewPending||viewerVideo==null||viewerEpisode==null||com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()==null)return;
+        viewPending=true;MovieEngagement.view(viewerVideo).addOnCompleteListener(t->{viewPending=false;viewRecorded=t.isSuccessful();if(!t.isSuccessful())showHistoryError();});
+    }
+    private final Runnable viewerTick=new Runnable(){public void run(){trackView();long now=android.os.SystemClock.elapsedRealtime();if(now-lastHistoryTick>=10000){lastHistoryTick=now;saveViewerProgress();}if(viewerActive)viewerHandler.postDelayed(this,1000);}};
     private long resumePosition = 0;
     private boolean resumePlayWhenReady = true;
     private float resumeVolume = 1f;
@@ -1278,11 +1287,11 @@ public class PlayerActivity extends AppCompatActivity {
         if(player!=null) ViewerLibrary.save(viewerVideo,viewerEpisode,player.getCurrentPosition(),player.getDuration()).addOnFailureListener(e->showHistoryError());
         else if(isWebViewMode && wvYouTubePlayer!=null){
             if(!viewerActive){ViewerLibrary.save(viewerVideo,viewerEpisode,webPosition,webDuration).addOnFailureListener(e->showHistoryError());return;}
-            wvYouTubePlayer.evaluateJavascript("(function(){try{var p=window.player,v=document.querySelector('video');if(p&&p.getDuration)return [p.getCurrentTime(),p.getDuration(),p.getPlayerState()==0];if(v)return [v.currentTime,v.duration,v.ended];}catch(e){}return null;})()", result->{
+            wvYouTubePlayer.evaluateJavascript("(function(){try{var p=window.player,v=document.querySelector('video');if(p&&p.getDuration)return [p.getCurrentTime(),p.getDuration(),p.getPlayerState()==0,p.getPlayerState()==1];if(v)return [v.currentTime,v.duration,v.ended,!v.paused&&!v.ended];}catch(e){}return null;})()", result->{
                 if(isFinishing())return;
-                try{org.json.JSONArray data=new org.json.JSONArray(result);webPosition=(long)(data.getDouble(0)*1000);webDuration=(long)(data.getDouble(1)*1000);
+                try{org.json.JSONArray data=new org.json.JSONArray(result);webWatching=data.optBoolean(3);webPosition=(long)(data.getDouble(0)*1000);webDuration=(long)(data.getDouble(1)*1000);
                     if(webResume>=0){long target=webResume;webResume=-1;wvYouTubePlayer.evaluateJavascript("(function(){var p=window.player,v=document.querySelector('video');if(p&&p.seekTo)p.seekTo("+(target/1000.0)+",true);else if(v)v.currentTime="+(target/1000.0)+";})()",null);return;}
-                    ViewerLibrary.save(viewerVideo,viewerEpisode,webPosition,webDuration);if(data.getBoolean(2))offerNextEpisode();
+                    ViewerLibrary.save(viewerVideo,viewerEpisode,webPosition,webDuration).addOnFailureListener(e->showHistoryError());if(data.getBoolean(2))offerNextEpisode();
                 }catch(Exception ignored){}
             });
         }
@@ -1348,7 +1357,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        viewerActive=true; viewerHandler.removeCallbacks(viewerTick); viewerHandler.postDelayed(viewerTick,10000);
+        viewerActive=true;lastViewTick=android.os.SystemClock.elapsedRealtime();wasWatching=false;viewerHandler.removeCallbacks(viewerTick); viewerHandler.postDelayed(viewerTick,1000);
         restoreViewerProgress();
         if (!isWebViewMode && player == null && videoUrl != null && !videoUrl.isEmpty()) {
             playDirectMediaVideo();
@@ -1360,7 +1369,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
-        saveViewerProgress(); viewerActive=false; viewerHandler.removeCallbacks(viewerTick);
+        saveViewerProgress(); viewerActive=false; webWatching=false; viewerHandler.removeCallbacks(viewerTick);
         if(nextTimer!=null)nextTimer.cancel(); if(nextDialog!=null)nextDialog.dismiss(); nextShown=false;
         super.onStop();
         // PiP remains started while visible; onStop means playback is no longer visible.

@@ -6,7 +6,10 @@ service cloud.firestore {
   match /users/{uid} {
    allow read: if signedIn() && (request.auth.uid == uid || admin());
    allow create: if signedIn() && request.auth.uid == uid && request.resource.data.keys().hasOnly(['email','role','createdAt']) && request.resource.data.role == 'user' && request.resource.data.email == request.auth.token.email && request.resource.data.createdAt == request.time;
-   allow update, delete: if false;
+   allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','displayName'])
+     && request.resource.data.role in ['admin','user']
+     && (request.auth.uid != uid || request.resource.data.role == 'admin');
+   allow delete: if false;
    match /{section}/{entry} {
     allow read, delete: if signedIn() && request.auth.uid == uid && section in ['watchlist','history'];
     allow create, update: if signedIn() && request.auth.uid == uid && section in ['watchlist','history']
@@ -20,5 +23,44 @@ service cloud.firestore {
   }
   match /videos/{id} { allow read: if true; allow write: if admin(); }
   match /genres/{id} { allow read: if true; allow write: if admin(); }
+  match /reactions/{id} {
+   allow read: if true;
+   allow create, update: if signedIn()
+     && request.resource.data.keys().hasOnly(['uid','videoId','value','updatedAt'])
+     && request.resource.data.uid == request.auth.uid
+     && request.resource.data.videoId is string
+     && id == request.auth.uid + '_' + request.resource.data.videoId
+     && request.resource.data.value in ['like','dislike']
+     && request.resource.data.updatedAt == request.time;
+   allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+  }
+  match /viewEvents/{id} {
+   allow read: if true;
+   allow create: if signedIn()
+     && request.resource.data.keys().hasOnly(['uid','videoId','title','genres','day','createdAt'])
+     && request.resource.data.uid == request.auth.uid
+     && request.resource.data.videoId is string && request.resource.data.title is string
+     && request.resource.data.day == int(request.time.toMillis() / 86400000)
+     && id == request.auth.uid + '_' + request.resource.data.videoId + '_' + string(request.resource.data.day)
+     && request.resource.data.createdAt == request.time;
+   allow update, delete: if false;
+  }
+  match /reactionEvents/{id} {
+   function validChange() {
+    let data = request.resource.data;
+    let reaction = /databases/$(database)/documents/reactions/$(request.auth.uid + '_' + data.videoId);
+    let before = exists(reaction) ? get(reaction).data.value : 'none';
+    let after = existsAfter(reaction) ? getAfter(reaction).data.value : 'none';
+    return data.keys().hasOnly(['uid','videoId','title','genres','from','to','createdAt'])
+      && data.uid == request.auth.uid && data.videoId is string
+      && data.title is string && data.genres is list
+      && data.from in ['none','like','dislike'] && data.to in ['none','like','dislike']
+      && data.from != data.to && data.from == before && data.to == after
+      && data.createdAt == request.time;
+   }
+   allow read: if admin();
+   allow create: if signedIn() && validChange();
+   allow update, delete: if false;
+  }
  }
 }

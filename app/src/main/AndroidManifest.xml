@@ -29,6 +29,8 @@
 
         <activity android:name=".SignUpActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ForgotPasswordActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".AdminStatsActivity" android:exported="false" />
+        <activity android:name=".AdminPanelActivity" android:exported="false" />
         <activity android:name=".LibraryActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="false" />
         <!-- Màn hình phát video ExoPlayer -->

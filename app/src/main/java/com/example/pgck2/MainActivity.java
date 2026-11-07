@@ -222,7 +222,7 @@ public class MainActivity extends AppCompatActivity {
         globalGenreList = new ArrayList<>();
         genreFilterStates = new HashMap<>();
 
-        seedLocalSampleData();
+        // Product screens load the Firebase catalog; sample data is reserved for demos.
         for(Video sample:fullVideoList) sample.setId(java.util.UUID.nameUUIDFromBytes((sample.getTitle()+sample.getVideoUrl()).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString());
         for(Video sample:top10MonthList) sample.setId(java.util.UUID.nameUUIDFromBytes((sample.getTitle()+sample.getVideoUrl()).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString());
         setupAdapter();
@@ -237,9 +237,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setupSearchAndAdminEvents();
-        ((TextView)findViewById(R.id.tvHeaderTitle)).setText("CINEMA");
+        ((TextView)findViewById(R.id.tvHeaderTitle)).setText("PCGK Cinema");
         ((TextView)findViewById(R.id.tvHeaderTitle)).setTextColor(0xffe50914);
-        ((TextView)findViewById(R.id.tvHeaderTitle)).setTextSize(26);
+        ((TextView)findViewById(R.id.tvHeaderTitle)).setTextSize(21);
+        LinearLayout credits=new LinearLayout(this);credits.setOrientation(1);for(int id:new int[]{R.string.student_one,R.string.student_two}){TextView line=new TextView(this);line.setText(id);line.setTextColor(0xffaaaaaa);line.setTextSize(11);credits.addView(line);}((android.view.ViewGroup)findViewById(R.id.layoutHeader).getParent()).addView(credits,1);
         CinemaNavigation.attach(this,findViewById(R.id.main),0,tab->{
             if(tab==0 || tab==1){isAllViewMode=tab==1;currentPage=1;applyViewMode();if(tab==0){cardSearch.setVisibility(View.GONE);etSearchQuery.setText("");}nestedScrollView.smoothScrollTo(0,0);}
             else if(tab==2){if(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()==null)startActivity(new android.content.Intent(this,LoginActivity.class));else startActivity(new android.content.Intent(this,LibraryActivity.class));}
@@ -536,7 +537,7 @@ public class MainActivity extends AppCompatActivity {
     private void loadGenresFromFirebase() {
         if (db == null) return;
         db.collection("genres").get().addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
+            if (task.isSuccessful() && task.getResult() != null) {
                 globalGenreList.clear();
                 for (QueryDocumentSnapshot document : task.getResult()) {
                     Genre genre = document.toObject(Genre.class);
@@ -606,22 +607,21 @@ public class MainActivity extends AppCompatActivity {
     private void loadVideosFromFirebase() {
         if (db == null) return;
         db.collection("videos").get().addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
+            if (task.isSuccessful() && task.getResult() != null) {
                 fullVideoList.clear();
 
                 for (QueryDocumentSnapshot document : task.getResult()) {
                     Video video = document.toObject(Video.class);
-                    if (video.getId() == null || video.getId().isEmpty()) {
-                        video.setId(document.getId());
-                    }
+                    video.setId(document.getId());
                     fullVideoList.add(video);
                 }
 
+                top10MonthList.clear();top10MonthList.addAll(fullVideoList.subList(0,Math.min(10,fullVideoList.size())));
+                if(top10MonthAdapter!=null)top10MonthAdapter.notifyDataSetChanged();
                 filterVideoList(etSearchQuery.getText().toString());
                 updatePopularSliderList();
 
-                Toast.makeText(MainActivity.this, "Đã đồng bộ " + fullVideoList.size() + " video từ Firebase Firestore", Toast.LENGTH_SHORT).show();
-            }
+            }else Toast.makeText(MainActivity.this,"Chưa tải được danh mục Firebase. Kiểm tra kết nối và Rules.",Toast.LENGTH_LONG).show();
         });
     }
 
@@ -750,11 +750,12 @@ public class MainActivity extends AppCompatActivity {
         btnToggleAdmin.setOnClickListener(v -> {
             com.google.firebase.auth.FirebaseUser user = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
             if (user == null) { startActivity(new android.content.Intent(this, LoginActivity.class)); return; }
-            String[] actions = new String[]{"Thư viện của tôi", isAdminMode ? "Tắt quản trị" : "Mở quản trị", "Hồ sơ và mật khẩu", "Đăng xuất"};
+            String[] actions = new String[]{"Thư viện của tôi", isAdminMode ? "Tắt quản trị" : "Mở quản trị", "Hồ sơ và mật khẩu", "Đăng xuất", "Thống kê quản trị"};
             CinemaDialogs.menu(this,user.getEmail(),actions,which -> {
                 if (which == 0) startActivity(new android.content.Intent(this, LibraryActivity.class));
                 else if (which == 1) { if(isAdminMode)setAccountAdminMode(false);else verifyAdminAccess(); }
                 else if (which == 2) CinemaDialogs.account(this);
+                else if (which == 4) { verifyAdminAccess(); }
                 else { com.google.firebase.auth.FirebaseAuth.getInstance().signOut(); openLogin(); }
             });
         });
@@ -800,7 +801,7 @@ public class MainActivity extends AppCompatActivity {
         applyViewMode();
     }
 
-    private void showAddEditVideoDialog(Video videoToEdit) {
+    protected void showAddEditVideoDialog(Video videoToEdit) {
         AlertDialog.Builder builder = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_edit_video, null);
         builder.setView(dialogView);
@@ -966,8 +967,8 @@ public class MainActivity extends AppCompatActivity {
 
             if (db != null) {
                 db.collection("videos").document(videoTarget.getId()).set(videoTarget)
-                        .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã lưu lên Firebase thành công!", Toast.LENGTH_SHORT).show())
-                        .addOnFailureListener(e -> Log.e(TAG, "Lỗi đồng bộ Firebase", e));
+                        .addOnSuccessListener(aVoid -> {Toast.makeText(this, "Đã lưu lên Firebase thành công!", Toast.LENGTH_SHORT).show();onCatalogChanged();})
+                        .addOnFailureListener(e -> {Toast.makeText(this,"Lưu thất bại. Thay đổi chưa được đồng bộ lên Firebase.",Toast.LENGTH_LONG).show();loadVideosFromFirebase();});
             }
             editDialog.dismiss();
         });
@@ -1430,7 +1431,7 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void showAdminManageGenresDialog(TextView tvSelectedGenres, List<String> tempSelectedGenres) {
+    protected void showAdminManageGenresDialog(TextView tvSelectedGenres, List<String> tempSelectedGenres) {
         AlertDialog.Builder builder = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
         builder.setTitle("⚙️ Admin Quản Lý Thể Loại Phim");
 
@@ -1510,7 +1511,7 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void confirmDeleteVideo(Video video) {
+    protected void confirmDeleteVideo(Video video) {
         new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
                 .setTitle("Xác Nhận Xóa")
                 .setMessage("Bạn có chắc chắn muốn xóa video \"" + video.getTitle() + "\" không?")
@@ -1523,14 +1524,15 @@ public class MainActivity extends AppCompatActivity {
 
                     if (db != null) {
                         db.collection("videos").document(video.getId()).delete()
-                                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Đã xóa khỏi Firebase!", Toast.LENGTH_SHORT).show())
-                                .addOnFailureListener(e -> Log.e(TAG, "Lỗi xóa trên Firebase", e));
+                                .addOnSuccessListener(aVoid -> {Toast.makeText(this, "Đã xóa khỏi Firebase!", Toast.LENGTH_SHORT).show();onCatalogChanged();})
+                                .addOnFailureListener(e -> {Toast.makeText(this,"Chưa xóa được phim trên Firebase.",Toast.LENGTH_LONG).show();loadVideosFromFirebase();});
                     }
                 })
                 .setNegativeButton("Hủy", null)
                 .show();
     }
 
+    protected void onCatalogChanged() {}
     private void openLogin() {
         startActivity(new android.content.Intent(this, LoginActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish();
     }
@@ -1556,7 +1558,7 @@ public class MainActivity extends AppCompatActivity {
             if(isFinishing()||com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()==null)return;
             if(!user.getUid().equals(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser().getUid()))return;
             if(task.isSuccessful()&&"admin".equals(task.getResult().getString("role"))){
-                canAdmin=true;setAccountAdminMode(true);Toast.makeText(this,"Đã mở quản trị · Bấm + để thêm phim, hoặc Sửa trên thẻ phim",Toast.LENGTH_LONG).show();return;
+                canAdmin=true;startActivity(new android.content.Intent(this,AdminPanelActivity.class));return;
             }
             canAdmin=false;setAccountAdminMode(false);
             String message=task.isSuccessful()?"Tài khoản chưa được cấp quyền admin. Trong Firebase Console → Firestore, đặt role (string) = admin tại users/"+user.getUid()+". Sau đó bấm Mở quản trị lại.":"Chưa đọc được quyền từ Firebase. Kiểm tra kết nối và Publish Firestore Rules cho phép đọc hồ sơ của chính tài khoản.";
@@ -1586,6 +1588,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         CinemaNavigation.select(findViewById(R.id.main),isAllViewMode?1:0);
         refreshAccount();
+        if(!(this instanceof AdminPanelActivity))loadVideosFromFirebase();
         sliderHandler.postDelayed(sliderRunnable, 12000);
     }
 

@@ -303,7 +303,7 @@
                         android:id="@+id/tvTop10MonthTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Top 10 Phim Trong Tháng 🔥"
+                        android:text="Khám phá thêm"
                         android:textColor="@android:color/white"
                         android:textSize="18sp"
                         android:textStyle="bold" />

@@ -15,7 +15,9 @@ final class AuthScreen {
   ScrollView scroll=new ScrollView(a);scroll.setFillViewport(true);
   LinearLayout root=new LinearLayout(a);root.setOrientation(1);root.setPadding((int)(28*d),(int)(32*d),(int)(28*d),(int)(24*d));scroll.addView(root);
   root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xff170607,0xff090909,0xff23080b}));
-  label(root,"◉  CINEMA",16,0xfff04752);
+  label(root,"PCGK Cinema",20,0xfff04752);
+  label(root,a.getString(R.string.student_one),11,0xffaaaaaa);
+  label(root,a.getString(R.string.student_two),11,0xffaaaaaa);
   TextView hero=label(root,mode==0?"Câu chuyện hay.\nBắt đầu từ đây.":mode==1?"Một tài khoản.\nCả thế giới phim.":"Tìm lại lối vào\nthế giới của bạn.",32,0xffffffff);hero.setPadding(0,(int)(36*d),0,(int)(28*d));hero.setTypeface(null,1);
   LinearLayout card=new LinearLayout(a);card.setOrientation(1);card.setPadding((int)(20*d),(int)(24*d),(int)(20*d),(int)(20*d));GradientDrawable bg=new GradientDrawable();bg.setColor(0xff191315);bg.setCornerRadius(24*d);bg.setStroke((int)d,0xff5b272c);card.setBackground(bg);root.addView(card);
   label(card,mode==0?"Chào mừng trở lại":mode==1?"Tạo tài khoản":"Quên mật khẩu?",24,0xfffaf5ee);

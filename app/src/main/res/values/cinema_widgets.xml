@@ -23,6 +23,8 @@
     </style>
     <style name="ThemeOverlay.Cinema.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorSurface">#1C1C1C</item>
+        <item name="colorSurfaceContainerHigh">#20212F</item>
+        <item name="colorOnSurfaceVariant">#C4C5D0</item>
         <item name="colorOnSurface">#F5F5F5</item>
         <item name="colorPrimary">#FF5360</item>
         <item name="colorControlActivated">#E50914</item>

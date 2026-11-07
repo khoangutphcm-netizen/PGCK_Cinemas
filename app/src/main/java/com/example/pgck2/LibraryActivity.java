@@ -28,7 +28,7 @@ public class LibraryActivity extends AppCompatActivity {
         LinearLayout page=new LinearLayout(this);page.setOrientation(1);
         CoordinatorLayout.LayoutParams pageParams=new CoordinatorLayout.LayoutParams(-1,-1);pageParams.bottomMargin=dp(72);root.addView(page,pageParams);
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(20),dp(16),dp(20),dp(16));page.addView(header);
-        TextView logo=label("CINEMA",27,0xffe50914);logo.setTypeface(null,1);header.addView(logo,new LinearLayout.LayoutParams(0,-2,1));
+        TextView logo=label("PCGK Cinema",23,0xffe50914);logo.setTypeface(null,1);header.addView(logo,new LinearLayout.LayoutParams(0,-2,1));
         ImageButton search=new ImageButton(this);search.setImageResource(R.drawable.ic_search);search.setImageTintList(ColorStateList.valueOf(-1));search.setBackgroundColor(0x00000000);search.setContentDescription("Tìm phim");header.addView(search,new LinearLayout.LayoutParams(dp(48),dp(48)));search.setOnClickListener(v->home(true,false));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);page.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         content=new LinearLayout(this);content.setOrientation(1);content.setPadding(dp(16),dp(16),dp(16),dp(32));scroll.addView(content);
@@ -82,7 +82,7 @@ public class LibraryActivity extends AppCompatActivity {
         LinearLayout info=new LinearLayout(this);info.setOrientation(1);info.setPadding(dp(12),0,0,0);row.addView(info,new LinearLayout.LayoutParams(0,-2,1));info.addView(label(movie.getTitle(),14,-1));String date=doc.getTimestamp("updatedAt")==null?"":android.text.format.DateFormat.format("dd/MM/yyyy · HH:mm",doc.getTimestamp("updatedAt").toDate()).toString();info.addView(label("Tập "+doc.getLong("episodeNumber")+" · "+(Boolean.TRUE.equals(doc.getBoolean("completed"))?"Đã xem":"Đang xem"),12,0xffaaaaaa));info.addView(label(date,11,0xff888888));row.setOnClickListener(v->openMovie(movie,doc,true));return row;
     }
     private void openMovie(Video movie,DocumentSnapshot history,boolean resume){
-        FirebaseFirestore.getInstance().collection("videos").document(movie.getId()).get().addOnSuccessListener(current->{if(isFinishing())return;Video latest=current.exists()?current.toObject(Video.class):movie;if(latest==null)return;latest.setId(movie.getId());
+        FirebaseFirestore.getInstance().collection("videos").document(movie.getId()).get().addOnSuccessListener(current->{if(isFinishing())return;if(!current.exists()){Toast.makeText(this,"Phim đã được gỡ khỏi danh mục.",Toast.LENGTH_LONG).show();return;}Video latest=current.toObject(Video.class);if(latest==null)return;latest.setId(movie.getId());
             if(resume){Long number=history.getLong("episodeNumber");for(Episode ep:latest.getEpisodes())if(number!=null&&ep.getEpisodeNumber()==number){startActivity(PlaybackIntents.episode(this,latest,ep));return;}}
             new MovieDetailBottomSheetDialog(latest).show(getSupportFragmentManager(),"detail");
         }).addOnFailureListener(e->Toast.makeText(this,"Không mở được phim. Vui lòng thử lại.",Toast.LENGTH_SHORT).show());

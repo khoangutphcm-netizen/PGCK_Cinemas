@@ -1,4 +1,6 @@
 <resources>
-    <string name="app_name">PGCK 2</string>
+    <string name="app_name">PCGK Cinema</string>
+    <string name="student_one">MSSV – Họ tên sinh viên 1: …</string>
+    <string name="student_two">MSSV – Họ tên sinh viên 2: …</string>
     <string name="the_loai">🏷️ Thể loại: %1$s</string>
 </resources>

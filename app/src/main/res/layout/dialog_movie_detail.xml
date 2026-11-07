@@ -238,7 +238,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:id="@+id/tvWatchlistLabel"
-                        android:text="Danh sách"
+                        android:text="Xem sau"
                         android:textColor="#AAAAAA"
                         android:textSize="11sp" />
                 </LinearLayout>
