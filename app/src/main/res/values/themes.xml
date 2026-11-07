@@ -1,0 +1,24 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme -->
+    <style name="Base.Theme.PGCK2" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#E50914</item>
+        <item name="colorSecondary">#E50914</item>
+        <item name="colorSurface">#191919</item>
+        <item name="colorOnSurface">#F5F5F5</item>
+        <item name="android:windowBackground">#111111</item>
+        <item name="android:textColorPrimary">#F5F5F5</item>
+        <item name="android:textColorSecondary">#AAAAAA</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.Cinema.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Cinema.Dialog</item>
+        <item name="editTextStyle">@style/Widget.Cinema.Input</item>
+        <item name="android:editTextStyle">@style/Widget.Cinema.Input</item>
+        <item name="buttonStyle">@style/Widget.Cinema.Button</item>
+        <item name="android:buttonStyle">@style/Widget.Cinema.Button</item>
+        <item name="android:statusBarColor">#121212</item>
+        <item name="android:navigationBarColor">#121212</item>
+    </style>
+
+    <style name="Theme.PGCK2" parent="Base.Theme.PGCK2" />
+</resources>

@@ -1,0 +1,37 @@
+<resources>
+    <style name="Widget.Cinema.Input" parent="Widget.AppCompat.EditText">
+        <item name="android:background">@drawable/bg_cinema_input</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:backgroundTint">@null</item>
+        <item name="android:textColor">#F3F3F3</item>
+        <item name="android:textColorHint">#A5A5A5</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:minHeight">52dp</item>
+    </style>
+    <style name="Widget.Cinema.Button" parent="Widget.AppCompat.Button">
+        <item name="android:background">@drawable/bg_cinema_button</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:backgroundTint">@null</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+    <style name="ShapeAppearance.Cinema.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+    <style name="ThemeOverlay.Cinema.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">#1C1C1C</item>
+        <item name="colorOnSurface">#F5F5F5</item>
+        <item name="colorPrimary">#FF5360</item>
+        <item name="colorControlActivated">#E50914</item>
+        <item name="android:textColorPrimary">#F5F5F5</item>
+        <item name="android:textColorSecondary">#B0B0B0</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Cinema.Dialog</item>
+        <item name="editTextStyle">@style/Widget.Cinema.Input</item>
+        <item name="android:editTextStyle">@style/Widget.Cinema.Input</item>
+        <item name="android:buttonStyle">@style/Widget.Cinema.Button</item>
+        <item name="buttonStyle">@style/Widget.Cinema.Button</item>
+    </style>
+</resources>
