@@ -750,13 +750,14 @@ public class MainActivity extends AppCompatActivity {
         btnToggleAdmin.setOnClickListener(v -> {
             com.google.firebase.auth.FirebaseUser user = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
             if (user == null) { startActivity(new android.content.Intent(this, LoginActivity.class)); return; }
-            String[] actions = new String[]{"Thư viện của tôi", isAdminMode ? "Tắt quản trị" : "Mở quản trị", "Hồ sơ và mật khẩu", "Đăng xuất", "Thống kê quản trị"};
+            String[] actions = new String[]{"Thư viện của tôi", isAdminMode ? "Tắt quản trị" : "Mở quản trị", "Hồ sơ và mật khẩu", "Đăng xuất", "Thống kê quản trị", "Premium · gói tháng/năm"};
             CinemaDialogs.menu(this,user.getEmail(),actions,which -> {
                 if (which == 0) startActivity(new android.content.Intent(this, LibraryActivity.class));
                 else if (which == 1) { if(isAdminMode)setAccountAdminMode(false);else verifyAdminAccess(); }
                 else if (which == 2) CinemaDialogs.account(this);
                 else if (which == 4) { verifyAdminAccess(); }
-                else { com.google.firebase.auth.FirebaseAuth.getInstance().signOut(); openLogin(); }
+                else if (which == 5) startActivity(new android.content.Intent(this,PremiumActivity.class));
+                else SessionNavigation.confirmLogout(this);
             });
         });
         fabAddVideo.setOnClickListener(v -> { if (canAdmin) showAddEditVideoDialog(null); });
@@ -764,12 +765,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void filterVideoList(String query) {
         currentFilteredList.clear();
-        String lowerCaseQuery = (query != null) ? query.toLowerCase().trim() : "";
+        String lowerCaseQuery = CatalogSearch.normalize(query);
 
         for (Video video : fullVideoList) {
             boolean matchText = lowerCaseQuery.isEmpty()
-                    || (video.getTitle() != null && video.getTitle().toLowerCase().contains(lowerCaseQuery))
-                    || (video.getDescription() != null && video.getDescription().toLowerCase().contains(lowerCaseQuery));
+                    || CatalogSearch.matches(lowerCaseQuery,video.getTitle(),video.getDescription());
 
             if (!matchText) continue;
 
@@ -802,18 +802,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void showAddEditVideoDialog(Video videoToEdit) {
-        AlertDialog.Builder builder = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_edit_video, null);
-        builder.setView(dialogView);
+        android.content.Context editorContext = new android.view.ContextThemeWrapper(this, R.style.Theme_Cinema_AdminForm);
+        View dialogView = LayoutInflater.from(editorContext).inflate(R.layout.admin_video_editor, null);
+        AdminFormDialog editDialog = new AdminFormDialog(this, videoToEdit == null ? "Thêm phim mới" : "Chỉnh sửa phim",
+                "Lưu để đồng bộ thông tin và tập phim lên Firebase.", dialogView,
+                videoToEdit == null ? "Thêm phim" : "Lưu thay đổi");
+        editDialog.confirmDiscard();
+        android.widget.ScrollView editorScroll = dialogView.findViewById(R.id.adminEditorScroll);
+        int[] jumps = {R.id.editorJump0, R.id.editorJump1, R.id.editorJump2, R.id.editorJump3};
+        int[] sections = {R.id.editorInfo, R.id.editorAppearance, R.id.editorEpisodes, R.id.editorPublishing};
+        for (int index = 0; index < jumps.length; index++) {
+            View section = dialogView.findViewById(sections[index]);
+            dialogView.findViewById(jumps[index]).setOnClickListener(v -> editorScroll.smoothScrollTo(0, section.getTop()));
+        }
 
-        TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
         EditText etTitle = dialogView.findViewById(R.id.etDialogTitle);
         EditText etDescription = dialogView.findViewById(R.id.etDialogDescription);
         EditText etYear = dialogView.findViewById(R.id.etDialogYear);
         EditText etMonth = dialogView.findViewById(R.id.etDialogMonth);
+        TitleStyleEditor titleStyle = new TitleStyleEditor(editorContext, dialogView.findViewById(R.id.titleStyleContainer), etTitle, videoToEdit);
         RadioButton rbTypeStandard = dialogView.findViewById(R.id.rbTypeStandard);
         RadioButton rbTypeTrailer = dialogView.findViewById(R.id.rbTypeTrailer);
         CheckBox cbIsPopular = dialogView.findViewById(R.id.cbIsPopular);
+        CheckBox cbPremium=dialogView.findViewById(R.id.cbPremiumVideo);
+        cbPremium.setChecked(videoToEdit!=null&&videoToEdit.isPremium());
 
         TextView tvSelectedGenres = dialogView.findViewById(R.id.tvSelectedGenres);
         Button btnSelectGenres = dialogView.findViewById(R.id.btnSelectGenres);
@@ -839,7 +851,6 @@ public class MainActivity extends AppCompatActivity {
 
         boolean isEditMode = (videoToEdit != null);
         if (isEditMode) {
-            tvDialogTitle.setText("Sửa thông tin phim");
             etTitle.setText(videoToEdit.getTitle());
             etDescription.setText(videoToEdit.getDescription());
             if (etYear != null) etYear.setText(videoToEdit.getReleaseYear());
@@ -865,7 +876,6 @@ public class MainActivity extends AppCompatActivity {
                 tempEpisodes.add(copy);
             }
         } else {
-            tvDialogTitle.setText("Thêm phim");
             cbIsPopular.setChecked(false);
         }
 
@@ -915,15 +925,13 @@ public class MainActivity extends AppCompatActivity {
             imagePickerLauncher.launch("image/*");
         });
 
-        builder.setPositiveButton(isEditMode ? "Lưu thay đổi" : "Thêm phim", null);
-        builder.setNegativeButton("Hủy", null);
-        AlertDialog editDialog = builder.create();
         editDialog.show();
-        editDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        editDialog.onSave(v -> {
+            if(!canEditCatalog()){Toast.makeText(this,"Chưa xác minh được quyền quản trị. Đóng form và làm mới panel.",Toast.LENGTH_LONG).show();return;}
             String title = etTitle.getText().toString().trim();
             String description = etDescription.getText().toString().trim();
-            String year = etYear != null ? etYear.getText().toString().trim() : "2024";
-            String month = etMonth != null ? etMonth.getText().toString().trim() : "10";
+            String year = etYear != null ? etYear.getText().toString().trim() : "";
+            String month = etMonth != null ? etMonth.getText().toString().trim() : "";
             String type = (rbTypeTrailer != null && rbTypeTrailer.isChecked()) ? Video.TYPE_TRAILER : Video.TYPE_STANDARD;
             boolean isPopular = cbIsPopular.isChecked();
             String videoUrl = etVideoUrl.getText().toString().trim();
@@ -934,43 +942,46 @@ public class MainActivity extends AppCompatActivity {
                 etTitle.requestFocus();
                 return;
             }
-
-            Video videoTarget;
-            if (isEditMode) {
-                videoToEdit.setTitle(title);
-                videoToEdit.setDescription(description);
-                videoToEdit.setReleaseYear(year);
-                videoToEdit.setReleaseMonth(month);
-                videoToEdit.setVideoType(type);
-                videoToEdit.setPopular(isPopular);
-                videoToEdit.setVideoUrl(videoUrl);
-                videoToEdit.setThumbnailUrl(thumbnailUrl);
-                videoToEdit.setGenres(new ArrayList<>(tempSelectedGenres));
-                videoToEdit.setAudioTracks(new ArrayList<>(tempAudioTracks));
-                videoToEdit.setSubtitleTracks(new ArrayList<>(tempSubtitleTracks));
-                videoToEdit.setEpisodes(new ArrayList<>(tempEpisodes));
-                videoTarget = videoToEdit;
-            } else {
-                videoTarget = new Video(title, description, thumbnailUrl, videoUrl, isPopular);
-                videoTarget.setReleaseYear(year);
-                videoTarget.setReleaseMonth(month);
-                videoTarget.setVideoType(type);
-                videoTarget.setGenres(new ArrayList<>(tempSelectedGenres));
-                videoTarget.setAudioTracks(new ArrayList<>(tempAudioTracks));
-                videoTarget.setSubtitleTracks(new ArrayList<>(tempSubtitleTracks));
-                videoTarget.setEpisodes(new ArrayList<>(tempEpisodes));
-                fullVideoList.add(0, videoTarget);
+            if (!year.isEmpty() && !year.matches("[1-9][0-9]{3}")) {
+                etYear.setError("Nhập năm gồm 4 chữ số"); etYear.requestFocus(); return;
             }
+            if (!month.isEmpty() && !month.matches("0?[1-9]|1[0-2]")) {
+                etMonth.setError("Tháng phải từ 1 đến 12"); etMonth.requestFocus(); return;
+            }
+            if (!month.isEmpty() && year.isEmpty()) {
+                etYear.setError("Nhập năm phát hành khi đã chọn tháng"); etYear.requestFocus(); return;
+            }
+            if (!titleStyle.validate()) return;
 
-            filterVideoList(etSearchQuery.getText().toString());
-            updatePopularSliderList();
+            Video videoTarget = new Video(isEditMode ? videoToEdit.getId() : java.util.UUID.randomUUID().toString(),
+                    title, description, thumbnailUrl, videoUrl, isPopular, new ArrayList<>(tempSelectedGenres),
+                    isEditMode ? videoToEdit.getSubtitleUrl() : "", isEditMode ? videoToEdit.getSubtitleLanguage() : "vi");
+            videoTarget.setReleaseYear(year);
+            videoTarget.setReleaseMonth(month);
+            videoTarget.setVideoType(type);
+            videoTarget.setAudioTracks(new ArrayList<>(tempAudioTracks));
+            videoTarget.setSubtitleTracks(new ArrayList<>(tempSubtitleTracks));
+            videoTarget.setEpisodes(new ArrayList<>(tempEpisodes));
 
+            videoTarget.setPremium(cbPremium.isChecked());
+            videoTarget.setTitleColor(titleStyle.startColor());
+            videoTarget.setTitleGradientEnd(titleStyle.endColor());
             if (db != null) {
+                editDialog.setBusy(true);
                 db.collection("videos").document(videoTarget.getId()).set(videoTarget)
-                        .addOnSuccessListener(aVoid -> {Toast.makeText(this, "Đã lưu lên Firebase thành công!", Toast.LENGTH_SHORT).show();onCatalogChanged();})
-                        .addOnFailureListener(e -> {Toast.makeText(this,"Lưu thất bại. Thay đổi chưa được đồng bộ lên Firebase.",Toast.LENGTH_LONG).show();loadVideosFromFirebase();});
+                        .addOnSuccessListener(aVoid -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            editDialog.dismiss();
+                            Toast.makeText(this, "Đã lưu phim lên Firebase", Toast.LENGTH_SHORT).show();
+                            onCatalogChanged();
+                            if (!(this instanceof AdminPanelActivity)) loadVideosFromFirebase();
+                        })
+                        .addOnFailureListener(e -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            editDialog.setBusy(false);
+                            Toast.makeText(this,"Chưa lưu được. Nội dung vẫn ở đây để bạn thử lại. Kiểm tra kết nối và quyền Firebase.",Toast.LENGTH_LONG).show();
+                        });
             }
-            editDialog.dismiss();
         });
 
 
@@ -1032,28 +1043,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showAdminManageEpisodesDialog(TextView tvSummary, List<Episode> tempEpisodes) {
-        AlertDialog.Builder builder = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
-        builder.setTitle("Tập phim");
+        android.content.Context formContext = new android.view.ContextThemeWrapper(this, R.style.Theme_Cinema_AdminForm);
 
-        LinearLayout layout = new LinearLayout(this);
+        LinearLayout layout = new LinearLayout(formContext);
         layout.setOrientation(LinearLayout.VERTICAL);
         int padding = (int) (20 * getResources().getDisplayMetrics().density);
         layout.setPadding(padding, padding / 2, padding, padding / 2);
 
-        Button btnAddNew = new Button(this);
+        Button btnAddNew = new com.google.android.material.button.MaterialButton(formContext);
         btnAddNew.setText("Thêm tập phim");
         layout.addView(btnAddNew);
 
-        TextView tvHeader = new TextView(this);
+        TextView tvHeader = new TextView(formContext);
+        tvHeader.setTextColor(0xffb5bed0);
+        tvHeader.setTextSize(13);
         tvHeader.setText(tempEpisodes.isEmpty() ? "Chưa có tập phim. Thêm tập để bật nút Xem."
                 : "Tập đầu danh sách sẽ mở khi bấm Xem. Bấm Thứ tự để sắp xếp; lưu phim để áp dụng.");
         tvHeader.setTypeface(null, Typeface.BOLD);
         layout.addView(tvHeader);
 
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(formContext);
         scroll.addView(layout);
-        builder.setView(scroll);
-        AlertDialog dialog = builder.setNegativeButton("Đóng", null).create();
+        AdminFormDialog dialog = new AdminFormDialog(this, "Danh sách tập phim",
+                "Thay đổi tập đang ở bản nháp. Trở lại và bấm Lưu phim để đồng bộ.", scroll, null);
 
         btnAddNew.setOnClickListener(v -> {
             dialog.dismiss();
@@ -1067,11 +1079,17 @@ public class MainActivity extends AppCompatActivity {
         tempEpisodes.clear();
         tempEpisodes.addAll(ordered);
         for (Episode ep : tempEpisodes) {
-            LinearLayout itemRow = new LinearLayout(this);
+            LinearLayout itemRow = new LinearLayout(formContext);
             itemRow.setOrientation(LinearLayout.VERTICAL);
-            itemRow.setPadding(0, 8, 0, 8);
+            itemRow.setPadding(padding / 2, padding / 2, padding / 2, padding / 2);
+            android.graphics.drawable.GradientDrawable episodeBackground = new android.graphics.drawable.GradientDrawable();
+            episodeBackground.setColor(0xff191c25); episodeBackground.setCornerRadius(padding);
+            itemRow.setBackground(episodeBackground);
+            LinearLayout.LayoutParams episodeParams = new LinearLayout.LayoutParams(-1, -2);
+            episodeParams.topMargin = padding / 2; itemRow.setLayoutParams(episodeParams);
 
-            TextView tvEpName = new TextView(this);
+            TextView tvEpName = new TextView(formContext);
+            tvEpName.setTextColor(0xfff1f3f9);
             tvEpName.setText("Tập " + ep.getEpisodeNumber() + " · " + ep.getTitle()
                     + "\n" + ep.getSubtitleTracks().size() + " phụ đề · " + ep.getAudioTracks().size() + " lồng tiếng");
             tvEpName.setTextSize(14);
@@ -1079,10 +1097,11 @@ public class MainActivity extends AppCompatActivity {
             LinearLayout.LayoutParams lpText = new LinearLayout.LayoutParams(-1, -2);
             tvEpName.setLayoutParams(lpText);
             itemRow.addView(tvEpName);
-            LinearLayout actions = new LinearLayout(this);
+            LinearLayout actions = new LinearLayout(formContext);
             actions.setOrientation(LinearLayout.HORIZONTAL);
             itemRow.addView(actions);
-            Button btnOrder = new Button(this);
+            Button btnOrder = new com.google.android.material.button.MaterialButton(formContext);
+            btnOrder.setMinWidth(0); btnOrder.setMinimumWidth(0); btnOrder.setTextSize(12);
             btnOrder.setText("Thứ tự");
             btnOrder.setOnClickListener(v -> {
                 int index = tempEpisodes.indexOf(ep);
@@ -1097,7 +1116,8 @@ public class MainActivity extends AppCompatActivity {
             });
             actions.addView(btnOrder, new LinearLayout.LayoutParams(0, -2, 1));
 
-            Button btnEdit = new Button(this);
+            Button btnEdit = new com.google.android.material.button.MaterialButton(formContext);
+            btnEdit.setMinWidth(0); btnEdit.setMinimumWidth(0); btnEdit.setTextSize(12);
             btnEdit.setText("Sửa");
             btnEdit.setOnClickListener(v -> {
                 dialog.dismiss();
@@ -1108,9 +1128,10 @@ public class MainActivity extends AppCompatActivity {
             });
             actions.addView(btnEdit, new LinearLayout.LayoutParams(0, -2, 1));
 
-            Button btnDelete = new Button(this);
+            Button btnDelete = new com.google.android.material.button.MaterialButton(formContext);
+            btnDelete.setMinWidth(0); btnDelete.setMinimumWidth(0); btnDelete.setTextSize(12);
             btnDelete.setText("Xóa");
-            btnDelete.setTextColor(Color.RED);
+            btnDelete.setTextColor(0xffff8c98);
             btnDelete.setOnClickListener(v -> {
                 tempEpisodes.remove(ep);
                 updateEpisodesSummaryText(tvSummary, tempEpisodes);
@@ -1128,39 +1149,43 @@ public class MainActivity extends AppCompatActivity {
 
     private void addEpisodeField(LinearLayout layout, EditText input, String label) {
         com.google.android.material.textfield.TextInputLayout field =
-                new com.google.android.material.textfield.TextInputLayout(this);
+                new com.google.android.material.textfield.TextInputLayout(layout.getContext());
         field.setHint(label);
         field.setBoxBackgroundMode(com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE);
         input.setHint(null);
+        input.setBackground(null);
+        input.setTextColor(0xfff1f3f9);
+        input.setTextSize(15);
+        int inset = (int) (16 * getResources().getDisplayMetrics().density);
+        input.setPadding(inset, inset, inset, inset);
         field.addView(input, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.bottomMargin = (int) (12 * getResources().getDisplayMetrics().density);
         layout.addView(field, params);
     }
     private void showAddEditEpisodeDialog(Episode epToEdit, List<Episode> tempEpisodes, Runnable onUpdated) {
-        AlertDialog.Builder builder = new com.google.android.material.dialog.MaterialAlertDialogBuilder(this);
-        builder.setTitle(epToEdit != null ? "Sửa tập phim" : "Thêm tập phim");
+        android.content.Context formContext = new android.view.ContextThemeWrapper(this, R.style.Theme_Cinema_AdminForm);
 
-        LinearLayout layout = new LinearLayout(this);
+        LinearLayout layout = new LinearLayout(formContext);
         layout.setOrientation(LinearLayout.VERTICAL);
         int padding = (int) (20 * getResources().getDisplayMetrics().density);
         layout.setPadding(padding, padding / 2, padding, padding / 2);
 
-        EditText etNumber = new EditText(this);
+        EditText etNumber = new com.google.android.material.textfield.TextInputEditText(formContext);
         etNumber.setHint("Số tập (vd: 1, 2, 3)");
         etNumber.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         addEpisodeField(layout, etNumber, "Số tập");
 
-        EditText etTitle = new EditText(this);
+        EditText etTitle = new com.google.android.material.textfield.TextInputEditText(formContext);
         etTitle.setHint("Tên tập phim (vd: Tập 1: Khởi đầu)");
         addEpisodeField(layout, etTitle, "Tên tập");
 
-        EditText etUrl = new EditText(this);
+        EditText etUrl = new com.google.android.material.textfield.TextInputEditText(formContext);
         etUrl.setHint("URL Video tập này (.mp4 / .m3u8 / YouTube)");
         etUrl.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
         addEpisodeField(layout, etUrl, "URL video của tập");
 
-        Button btnPickVideo = new Button(this);
+        Button btnPickVideo = new com.google.android.material.button.MaterialButton(formContext);
         btnPickVideo.setText("Tải video từ thiết bị");
         btnPickVideo.setOnClickListener(v -> {
             currentEtVideoUrl = etUrl;
@@ -1168,19 +1193,21 @@ public class MainActivity extends AppCompatActivity {
         });
         layout.addView(btnPickVideo);
 
-        TextView tvEpAudioSummary = new TextView(this);
+        TextView tvEpAudioSummary = new TextView(formContext);
+        tvEpAudioSummary.setTextColor(0xff7dd3c7);
         tvEpAudioSummary.setPadding(0, 12, 0, 4);
         layout.addView(tvEpAudioSummary);
 
-        Button btnManageEpAudio = new Button(this);
+        Button btnManageEpAudio = new com.google.android.material.button.MaterialButton(formContext);
         btnManageEpAudio.setText("Lồng tiếng của tập");
         layout.addView(btnManageEpAudio);
 
-        TextView tvEpSubSummary = new TextView(this);
+        TextView tvEpSubSummary = new TextView(formContext);
+        tvEpSubSummary.setTextColor(0xff9bbfff);
         tvEpSubSummary.setPadding(0, 12, 0, 4);
         layout.addView(tvEpSubSummary);
 
-        Button btnManageEpSub = new Button(this);
+        Button btnManageEpSub = new com.google.android.material.button.MaterialButton(formContext);
         btnManageEpSub.setText("Phụ đề của tập");
         layout.addView(btnManageEpSub);
 
@@ -1205,14 +1232,14 @@ public class MainActivity extends AppCompatActivity {
         btnManageEpAudio.setOnClickListener(v -> showAdminManageAudioTracksDialog(tvEpAudioSummary, epAudioTracks));
         btnManageEpSub.setOnClickListener(v -> showAdminManageSubtitlesDialog(tvEpSubSummary, epSubtitleTracks));
 
-        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(formContext);
         scroll.addView(layout);
-        builder.setView(scroll);
-        builder.setPositiveButton("Lưu tập", null);
-        builder.setNegativeButton("Hủy", null);
-        AlertDialog episodeDialog = builder.create();
+        AdminFormDialog episodeDialog = new AdminFormDialog(this, epToEdit == null ? "Thêm tập phim" : "Chỉnh sửa tập phim",
+                "Lưu tập vào bản nháp. Bấm Lưu phim ở màn hình trước để đồng bộ Firebase.", scroll, "Lưu tập phim");
+        episodeDialog.confirmDiscard();
+        episodeDialog.onClose(onUpdated);
         episodeDialog.show();
-        episodeDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        episodeDialog.onSave(v -> {
             String numStr = etNumber.getText().toString().trim();
             String title = etTitle.getText().toString().trim();
             String url = etUrl.getText().toString().trim();
@@ -1457,6 +1484,7 @@ public class MainActivity extends AppCompatActivity {
 
         btnAddNew.setOnClickListener(v -> {
             String newName = etNewGenre.getText().toString().trim();
+            if(!canEditCatalog()){Toast.makeText(this,"Chưa xác minh được quyền quản trị.",Toast.LENGTH_LONG).show();return;}
             if (newName.isEmpty()) {
                 Toast.makeText(this, "Vui lòng nhập tên thể loại!", Toast.LENGTH_SHORT).show();
                 return;
@@ -1482,6 +1510,7 @@ public class MainActivity extends AppCompatActivity {
                     .setTitle("Xóa Thể Loại")
                     .setMessage("Xóa thể loại \"" + g.getName() + "\" sẽ gỡ bỏ thẻ này khỏi tất cả video. Xác nhận xóa?")
                     .setPositiveButton("Xóa", (dialog1, which) -> {
+                        if(!canEditCatalog())return;
                         String deletedName = g.getName();
                         globalGenreList.remove(g);
                         if (db != null) db.collection("genres").document(g.getId()).delete();
@@ -1516,6 +1545,7 @@ public class MainActivity extends AppCompatActivity {
                 .setTitle("Xác Nhận Xóa")
                 .setMessage("Bạn có chắc chắn muốn xóa video \"" + video.getTitle() + "\" không?")
                 .setPositiveButton("Xóa", (dialog, which) -> {
+                    if(!canEditCatalog())return;
                     fullVideoList.remove(video);
                     top10MonthList.remove(video);
                     filterVideoList(etSearchQuery.getText().toString());
@@ -1532,9 +1562,10 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    protected boolean canEditCatalog(){return canAdmin;}
     protected void onCatalogChanged() {}
     private void openLogin() {
-        startActivity(new android.content.Intent(this, LoginActivity.class).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish();
+        SessionNavigation.welcome(this);
     }
     private void setAccountAdminMode(boolean enabled) {
         isAdminMode = canAdmin && enabled;

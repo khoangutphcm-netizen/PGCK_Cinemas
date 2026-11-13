@@ -23,6 +23,33 @@ service cloud.firestore {
   }
   match /videos/{id} { allow read: if true; allow write: if admin(); }
   match /genres/{id} { allow read: if true; allow write: if admin(); }
+  // Demo checkout only: self-confirmation is intentional, not real payment verification.
+  match /premiumOrders/{id} {
+   allow read: if signedIn() && (resource.data.uid == request.auth.uid || admin());
+   allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid','plan','amount','simulation','status','createdAt'])
+     && request.resource.data.uid == request.auth.uid && request.resource.data.simulation == true
+     && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time
+     && ((request.resource.data.plan == 'month' && request.resource.data.amount == 49000)
+       || (request.resource.data.plan == 'year' && request.resource.data.amount == 399000));
+   allow update: if signedIn() && resource.data.uid == request.auth.uid && resource.data.status == 'pending'
+     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','confirmedAt'])
+     && request.resource.data.status == 'confirmed' && request.resource.data.confirmedAt == request.time;
+   allow delete: if false;
+  }
+  match /subscriptions/{uid} {
+   allow read: if signedIn() && (uid == request.auth.uid || admin());
+   allow create, update: if signedIn() && uid == request.auth.uid
+     && request.resource.data.keys().hasOnly(['orderId','updatedAt']) && request.resource.data.orderId is string
+     && request.resource.data.updatedAt == request.time
+     && getAfter(/databases/$(database)/documents/premiumOrders/$(request.resource.data.orderId)).data.uid == uid
+     && getAfter(/databases/$(database)/documents/premiumOrders/$(request.resource.data.orderId)).data.status == 'confirmed'
+     && getAfter(/databases/$(database)/documents/premiumOrders/$(request.resource.data.orderId)).data.simulation == true
+     && (!exists(/databases/$(database)/documents/subscriptions/$(uid))
+       || request.resource.data.orderId == resource.data.orderId
+       || get(/databases/$(database)/documents/premiumOrders/$(resource.data.orderId)).data.confirmedAt
+         + duration.value(get(/databases/$(database)/documents/premiumOrders/$(resource.data.orderId)).data.plan == 'year' ? 365 : 30, 'd') <= request.time);
+   allow delete: if false;
+  }
   match /reactions/{id} {
    allow read: if true;
    allow create, update: if signedIn()

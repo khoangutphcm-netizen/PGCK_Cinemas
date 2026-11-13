@@ -131,7 +131,7 @@ public class VideoAdapter extends RecyclerView.Adapter<VideoAdapter.VideoViewHol
         Video video = videoList.get(position);
 
         // Hiển thị tiêu đề
-        holder.tvTitle.setText(video.getTitle());
+        holder.tvTitle.setText(video.getTitle()+(video.isPremium()?" · PREMIUM":""));
 
         // Hiển thị danh sách thể loại phim
         String genresText = video.getGenresString();

@@ -22,25 +22,35 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <TextView
+        <com.example.pgck2.MovieTitleView
             android:id="@+id/tvPopularTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:maxLines="2"
             android:ellipsize="end"
             android:textColor="@android:color/white"
-            android:textSize="24sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvPopularMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#CBD5E1"
+            android:textSize="11sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/tvPopularDesc"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:maxLines="2"
             android:ellipsize="end"
             android:textColor="#CCCCCC"
-            android:textSize="14sp" />
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btnWatchNow"

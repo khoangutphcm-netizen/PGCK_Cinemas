@@ -33,7 +33,7 @@ final class AuthScreen {
    com.google.android.gms.tasks.Task<?> task=mode==2?auth.sendPasswordResetEmail(address):mode==1?auth.createUserWithEmailAndPassword(address,password.getText().toString()):auth.signInWithEmailAndPassword(address,password.getText().toString());
    task.addOnCompleteListener(t->{if(a.isFinishing())return;submit.setEnabled(true);if(t.isSuccessful()){if(mode==2)status.setText("Nếu email đã đăng ký, hãy kiểm tra hộp thư và thư rác để đặt lại mật khẩu.");else home.run();}else status.setText("Chưa thực hiện được. Kiểm tra thông tin và kết nối rồi thử lại.");});
   });
-  link(card,mode==0?"Chưa có tài khoản?  Đăng ký":"Quay lại đăng nhập",()->{if(mode==0)a.startActivity(new Intent(a,SignUpActivity.class));else a.finish();});
+  link(card,mode==0?"Chưa có tài khoản?  Đăng ký":"Quay lại đăng nhập",()->{if(mode==0)a.startActivity(new Intent(a,SignUpActivity.class));else{a.startActivity(new Intent(a,LoginActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));a.finish();}});
   link(root,"Khám phá với tư cách khách →",home);
   if(mode==0)link(root,"Admin · Điền sẵn email thử nghiệm",()->{email.setText("admin@gmail.com");password.requestFocus();status.setText("Nhập mật khẩu của admin@gmail.com, rồi bấm Đăng nhập.");});
   a.setContentView(scroll);androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(scroll,(v,i)->{androidx.core.graphics.Insets bars=i.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()|androidx.core.view.WindowInsetsCompat.Type.ime());v.setPadding(bars.left,bars.top,bars.right,bars.bottom);return i;});

@@ -21,11 +21,12 @@ final class CinemaDialogs {
     }
     static void account(AppCompatActivity activity){
         FirebaseUser user=FirebaseAuth.getInstance().getCurrentUser();if(user==null){activity.startActivity(new Intent(activity,LoginActivity.class));return;}
-        menu(activity,user.getDisplayName()==null?user.getEmail():user.getDisplayName(),new String[]{"Hồ sơ cá nhân","Đặt lại mật khẩu","Trang chủ và quản trị","Đăng xuất"},which->{
+        menu(activity,user.getDisplayName()==null?user.getEmail():user.getDisplayName(),new String[]{"Hồ sơ cá nhân","Đặt lại mật khẩu","Trang chủ và quản trị","Đăng xuất","Premium · gói tháng/năm"},which->{
             if(which==0)profile(activity,user);
             else if(which==1)new MaterialAlertDialogBuilder(activity).setTitle("Đặt lại mật khẩu").setMessage("Gửi liên kết đặt lại tới "+user.getEmail()+"?").setNegativeButton("Hủy",null).setPositiveButton("Gửi email",(d,w)->FirebaseAuth.getInstance().sendPasswordResetEmail(user.getEmail()).addOnCompleteListener(t->Toast.makeText(activity,t.isSuccessful()?"Đã gửi email. Kiểm tra cả thư rác.":"Chưa gửi được. Thử lại.",Toast.LENGTH_LONG).show())).show();
             else if(which==2){if(activity instanceof MainActivity){activity.findViewById(R.id.btnToggleAdmin).performClick();}else{activity.startActivity(new Intent(activity,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));activity.finish();}}
-            else{FirebaseAuth.getInstance().signOut();activity.startActivity(new Intent(activity,LoginActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));activity.finish();}
+            else if(which==4)activity.startActivity(new Intent(activity,PremiumActivity.class));
+            else SessionNavigation.confirmLogout(activity);
         });
     }
     private static void profile(AppCompatActivity activity,FirebaseUser user){

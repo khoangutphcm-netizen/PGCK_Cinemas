@@ -11,12 +11,22 @@ import java.util.UUID;
  * Luồng lồng tiếng (Audio Dubs) và Phụ đề rời (Subtitles CC).
  */
 public class Video implements java.io.Serializable {
+    private boolean premium;
+    public boolean isPremium(){return premium;}
+    public void setPremium(boolean premium){this.premium=premium;}
     public static final String TYPE_STANDARD = "STANDARD";
     public static final String TYPE_TRAILER = "TRAILER";
 
     private String id;                           // Mã định danh duy nhất của video
     private String title;                        // Tên phim / Tiêu đề video
     private String description;                  // Mô tả nội dung video / phim
+    private String titleColor = "#FFFFFF";
+    private String titleGradientEnd = "";
+
+    public String getTitleColor() { return titleColor == null ? "#FFFFFF" : titleColor; }
+    public void setTitleColor(String color) { titleColor = color; }
+    public String getTitleGradientEnd() { return titleGradientEnd == null ? "" : titleGradientEnd; }
+    public void setTitleGradientEnd(String color) { titleGradientEnd = color; }
     private String thumbnailUrl;                 // Đường dẫn/URL ảnh bìa (thumbnail)
     private boolean isPopular;                   // Đánh dấu phim Nổi bật (Popular Slider)
     private String videoUrl;                     // Đường dẫn/URL truyền phát video chính (YouTube/MP4/HLS)
@@ -38,8 +48,8 @@ public class Video implements java.io.Serializable {
         this.subtitleLanguage = "vi";
         this.audioTracks = new ArrayList<>();
         this.subtitleTracks = new ArrayList<>();
-        this.releaseYear = "2024";
-        this.releaseMonth = "10";
+        this.releaseYear = "";
+        this.releaseMonth = "";
         this.videoType = TYPE_STANDARD;
         this.episodes = new ArrayList<>();
     }
@@ -67,8 +77,8 @@ public class Video implements java.io.Serializable {
         this.subtitleLanguage = subtitleLanguage != null && !subtitleLanguage.isEmpty() ? subtitleLanguage : "vi";
         this.audioTracks = new ArrayList<>();
         this.subtitleTracks = new ArrayList<>();
-        this.releaseYear = "2024";
-        this.releaseMonth = "10";
+        this.releaseYear = "";
+        this.releaseMonth = "";
         this.videoType = TYPE_STANDARD;
         this.episodes = new ArrayList<>();
 
@@ -174,7 +184,7 @@ public class Video implements java.io.Serializable {
     }
 
     public String getReleaseYear() {
-        return releaseYear != null && !releaseYear.trim().isEmpty() ? releaseYear : "2024";
+        return releaseYear == null ? "" : releaseYear.trim();
     }
 
     public void setReleaseYear(String releaseYear) {
@@ -182,7 +192,7 @@ public class Video implements java.io.Serializable {
     }
 
     public String getReleaseMonth() {
-        return releaseMonth != null && !releaseMonth.trim().isEmpty() ? releaseMonth : "10";
+        return releaseMonth == null ? "" : releaseMonth.trim();
     }
 
     public void setReleaseMonth(String releaseMonth) {

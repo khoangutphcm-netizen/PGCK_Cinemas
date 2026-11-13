@@ -56,3 +56,43 @@ Kiểm tra Firebase thật sau Publish:
 - Admin xem được `reactionEvents`; user không được sửa/xóa sự kiện hoặc ghi trạng thái cho tài khoản khác. Kiểm tra transaction hợp lệ trong Rules Playground/Emulator nếu cần đánh giá quy tắc.
 
 Các phép tính được kiểm thử trong `StatsReportTest`: biên tháng UTC+7, năm nhuận, người xem duy nhất, nhiều thể loại, danh mục rỗng, lọc đồng nhất, xếp hạng có số 0, phim đã gỡ và tách nhật ký khỏi trạng thái hiện tại. Chưa thay thế kiểm tra Firebase thật. Với lượng dữ liệu lớn, cần chuyển tổng hợp sang máy chủ thay vì đọc toàn bộ trạng thái reaction về app.
+
+## Premium mô phỏng và PiP
+
+- Publish Rules mới cho `premiumOrders` và `subscriptions` trước khi chạy. Đây là checkout mô phỏng có chủ ý cho phép chủ đơn tự xác nhận, không phải xác thực thanh toán ngân hàng.
+- User vào Tài khoản > Premium. Gói tháng là 30 ngày/49.000đ mô phỏng; gói năm là 365 ngày/399.000đ mô phỏng. Có thể đổi giá/ngày trong PremiumPlans và điều kiện tương ứng của Rules.
+- Mã QR thật chứa `pcgkcinema://premium/order/{id}`. Camera đọc được liên kết; thiết bị đã cài app và đăng nhập đúng chủ đơn có thể mở đơn qua liên kết. QR không chuyển tiền và không tự đánh dấu đã thanh toán.
+- Xác nhận mô phỏng ghi trạng thái đơn và liên kết gói cùng transaction. Thời hạn tính từ confirmedAt do Firebase cấp. Xác nhận lại cùng đơn không cộng thêm ngày. Không bán thêm gói khi gói hiện tại còn hạn; chưa có gia hạn cộng dồn hoặc tự động thu tiền.
+- Admin chỉnh phim, bật Video Premium và lưu. User mở tập: Player kiểm tra phim từ server và gói trước khi phát; admin có thể xem để kiểm tra nội dung. Trailer vẫn mở tự do. Panel > Thống kê > Đơn Premium xem các đơn mô phỏng.
+- Đây là kiểm soát truy cập ở ứng dụng demo; URL media hiện vẫn nằm trong catalog. Bản thương mại cần backend xác minh thanh toán, thời gian/quyền truy cập và URL ký có hạn; không dùng Rules tự xác nhận mô phỏng cho giao dịch thật.
+- PiP: nhấn nút để thu nhỏ, nhấn giữ để chọn theo video/16:9/9:16 hoặc bật tắt tự PiP. Android 12+ dùng auto-enter khi đang phát; Android cũ dùng Home callback. Có lùi/phát/tới, ưu tiên phát/tạm dừng nếu thiết bị chỉ hỗ trợ ít nút. Nguồn web phụ thuộc API player. Android tự quyết định kích thước cửa sổ, không đặt kích thước chính xác bằng phần trăm màn hình.
+
+Kiểm tra Firebase thật sau Publish: user chưa có gói bị chặn Premium; free và trailer vẫn xem được; xác nhận đơn month/year rồi mở lại tập Premium; thử xác nhận cùng đơn hai lần; tài khoản khác không đọc/ghi đơn hoặc gói của chủ đơn; kiểm tra hạn hết. Dữ liệu thanh toán không chứa mật khẩu hoặc số tài khoản ngân hàng.
+
+## Thứ tự cải thiện tiếp theo
+
+1. Tách editor/repository khỏi MainActivity (AdminPanel hiện kế thừa Main để dùng lại upload và form), thêm sửa/đổi tên genre và đảm bảo lỗi ghi không làm giao diện báo thành công.
+2. Backend Admin SDK cho thêm/sửa/xóa/khóa tài khoản và thu hồi phiên; thống nhất hồ sơ Auth/Firestore. Cần quyền triển khai Firebase để hoàn tất phần này.
+3. Kiểm tra xuyên suốt user/admin/Premium trên Firebase, tối ưu lịch sử chỉ ghi khi tiến độ đổi, tổng hợp thống kê phía server khi dữ liệu lớn. Bổ sung nhật ký thao tác quản trị và tìm kiếm không dấu.
+4. Sau cùng mới triển khai tải và offline: Room, thumbnail, danh sách tải, tiến độ và nguồn phát local.
+
+## Các thao tác bạn cần tự làm trên Firebase
+
+Chọn đúng project ghi trong `app/google-services.json`.
+
+1. Authentication > Sign-in method: bật Email/Password nếu chưa bật.
+2. Authentication > Users: tạo tài khoản bằng email bạn sở hữu để nhận thư đặt lại mật khẩu. Tài khoản test admin@gmail.com/user@gmail.com chỉ dùng nếu bạn đã tự tạo và biết mật khẩu; tên email không tự cấp quyền admin.
+3. Để cấp admin đầu tiên: sao chép UID từ Authentication. Firestore Database > Data > users > document ID đúng UID đó. Thêm email (string), role (string) = admin, createdAt (timestamp). User thường dùng role = user; app tạo hồ sơ user ở lần đăng nhập đầu nếu có quyền ghi.
+4. Firestore Database > Rules: dán nội dung hiện tại của `firestore.rules` và Publish. Nếu đã Publish đúng bản mới nhất thì không cần làm lại cho thay đổi Welcome. File bao gồm users, videos, genres, reactions, reactionEvents, viewEvents, premiumOrders, subscriptions và thư viện cá nhân.
+5. Không cần tự tạo từng document lịch sử, view, like, đơn hàng hoặc gói. App tạo khi có thao tác hợp lệ. Không tạo trạng thái thanh toán giả thủ công trong Console: dùng nút xác nhận mô phỏng trong app để lưu cả đơn và gói cùng transaction.
+6. Muốn thử Premium: admin bật Video Premium trên phim có tập hợp lệ; đăng nhập user thường, mua gói mô phỏng rồi mở lại tập. Admin được xem nội dung để quản lý nên cần dùng user thường để thử chặn Premium.
+
+Chưa cần bật thanh toán ngân hàng hoặc nhập thông tin thẻ cho QR mô phỏng. App không triển khai backend Admin SDK: việc thêm/xóa/khóa tài khoản Auth vẫn làm trong Firebase Console ở giai đoạn này. Panel chỉ đổi role Firestore và gửi email đặt lại mật khẩu.
+
+## Welcome và kết quả rà UX
+
+- Launcher mới là WelcomeActivity. Welcome cho xem khách/đăng nhập/đăng ký; có phiên đăng nhập thì hiện nút tiếp tục và đổi tài khoản. Android Studio dùng Launch: Default Activity, không chọn Specified Activity là demo hoặc LoginActivity.
+- Đăng xuất có xác nhận, quay về Welcome và xóa back stack để không Back trở lại admin. Liên kết từ đăng ký/quên mật khẩu về đăng nhập là điều hướng thật, kể cả khi đăng ký được mở trực tiếp từ Welcome.
+- Admin kiểm tra lại role khi quay về panel, hủy hiệu lực callback từ phiên cũ, có retry nếu mất mạng. Search lọc trên danh sách đã tải thay vì gọi Firebase mỗi ký tự. User/admin tìm kiếm hỗ trợ tiếng Việt không dấu.
+- Bình luận CHƯA có: chưa có collection, UI, phân quyền hay kiểm duyệt comment. Đây là câu hỏi kiểm tra hiện trạng, chưa được mở rộng thành tính năng trong đợt Welcome.
+- UX còn cần cải thiện: editor phim/tập vẫn nhiều trường và dựa vào MainActivity; chọn ảnh hồ sơ mới bằng URL; user/Auth và hồ sơ Firestore chưa đồng bộ đầy đủ; Premium là mô phỏng và chưa trả về tự động đúng tập sau khi mua. Tải/offline giữ ở cuối kế hoạch.

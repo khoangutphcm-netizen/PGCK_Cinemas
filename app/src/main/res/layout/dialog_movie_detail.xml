@@ -72,12 +72,12 @@
             android:paddingTop="16dp">
 
             <!-- Tên Phim Đang Chọn -->
-            <TextView
+            <com.example.pgck2.MovieTitleView
                 android:id="@+id/tvDetailTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="@android:color/white"
-                android:textSize="22sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 tools:text="Tên Phim Đang Chọn" />
 

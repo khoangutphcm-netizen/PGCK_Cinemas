@@ -84,7 +84,7 @@ public class MovieDetailBottomSheetDialog extends BottomSheetDialogFragment {
         wvYouTubePreview = view.findViewById(R.id.wvYouTubePreview);
         FrameLayout framePlayerPreview = view.findViewById(R.id.framePlayerPreview);
 
-        TextView tvDetailTitle = view.findViewById(R.id.tvDetailTitle);
+        MovieTitleView tvDetailTitle = view.findViewById(R.id.tvDetailTitle);
         TextView tvReleaseYear = view.findViewById(R.id.tvReleaseYear);
         TextView tvSeasonsOrEpisodes = view.findViewById(R.id.tvSeasonsOrEpisodes);
         TextView tvDetailDescription = view.findViewById(R.id.tvDetailDescription);
@@ -101,8 +101,11 @@ public class MovieDetailBottomSheetDialog extends BottomSheetDialogFragment {
 
         // 1. Cập nhật thông tin tiêu đề và năm phát hành
         if (video != null) {
-            tvDetailTitle.setText(video.getTitle());
-            tvReleaseYear.setText(video.getReleaseYear() + " (" + video.getReleaseMonth() + ")");
+            tvDetailTitle.setText(video.getTitle()+(video.isPremium()?" · PREMIUM":""));
+            tvDetailTitle.setTitleColors(video.getTitleColor(), video.getTitleGradientEnd());
+            tvReleaseYear.setText(video.getReleaseMonth().isEmpty() ? video.getReleaseYear()
+                    : video.getReleaseMonth() + "/" + video.getReleaseYear());
+            tvReleaseYear.setVisibility(video.getReleaseYear().isEmpty() ? View.GONE : View.VISIBLE);
             tvDetailDescription.setText(video.getDescription() != null && !video.getDescription().trim().isEmpty() ? video.getDescription() : "Chưa có nội dung mô tả cho phim này.");
 
             List<Episode> episodes = video.getEpisodes();

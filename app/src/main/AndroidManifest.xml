@@ -18,7 +18,7 @@
 
         <!-- Màn hình chính chứa danh sách video -->
         <activity
-            android:name=".LoginActivity"
+            android:name=".WelcomeActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -27,9 +27,14 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".LoginActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".SignUpActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ForgotPasswordActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".AdminStatsActivity" android:exported="false" />
+        <activity android:name=".PremiumOrdersActivity" android:exported="false" />
+        <activity android:name=".PremiumActivity" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="pcgkcinema" android:host="premium" android:pathPrefix="/order/"/></intent-filter>
+        </activity>
         <activity android:name=".AdminPanelActivity" android:exported="false" />
         <activity android:name=".LibraryActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="false" />

@@ -128,6 +128,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     // Ghi nhớ vị trí phát để dựng lại player sau onStop
     private boolean historyErrorShown=false;
+    private boolean playbackAuthorized=false;
     private Video viewerVideo;
     private Episode viewerEpisode;
     private boolean viewerActive=false, resumeChecked=false, nextShown=false, resumePending=false;
@@ -168,6 +169,8 @@ public class PlayerActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             if (intent == null || !ACTION_MEDIA_CONTROL.equals(intent.getAction())) return;
             if (player != null) {
+                String command=intent.getStringExtra("command");
+                if("rewind".equals(command)||"forward".equals(command)){if(player.isCurrentMediaItemSeekable())player.seekTo(Math.max(0,Math.min(player.getDuration()>0?player.getDuration():Long.MAX_VALUE,player.getCurrentPosition()+("rewind".equals(command)?-10000:10000))));return;}
                 if (player.isPlaying()) {
                     player.pause();
                 } else {
@@ -175,6 +178,13 @@ public class PlayerActivity extends AppCompatActivity {
                 }
                 updatePipParams();
                 updatePlayPauseIcon();
+            }
+            else if(isWebViewMode&&wvYouTubePlayer!=null){
+                String command=intent.getStringExtra("command");
+                String code="(function(){try{var p=window.player,v=document.querySelector('video');";
+                if("rewind".equals(command)||"forward".equals(command)){int delta="rewind".equals(command)?-10:10;code+="if(p&&p.seekTo){p.seekTo(Math.max(0,p.getCurrentTime()+("+delta+")),true);return true;}if(v){v.currentTime=Math.max(0,v.currentTime+("+delta+"));return true;}";}
+                else code+="if(p&&p.getPlayerState){if(p.getPlayerState()==1)p.pauseVideo();else p.playVideo();return true;}if(v){if(v.paused)v.play();else v.pause();return true;}";
+                wvYouTubePlayer.evaluateJavascript(code+"}catch(e){}return false;})()",null);
             }
         }
     };
@@ -257,7 +267,8 @@ public class PlayerActivity extends AppCompatActivity {
         viewerEpisode=(Episode)getIntent().getSerializableExtra("viewer_episode");
         setupViewerNavigation();
         setupControlListeners();
-        setupPlayer();
+        if(viewerEpisode==null){playbackAuthorized=true;setupPlayer();}
+        else PremiumAccess.check(this,viewerVideo,()->{if(isFinishing())return;playbackAuthorized=true;setupPlayer();restoreViewerProgress();});
 
         IntentFilter filter = new IntentFilter(ACTION_MEDIA_CONTROL);
         ContextCompat.registerReceiver(this, broadcastReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
@@ -383,6 +394,8 @@ public class PlayerActivity extends AppCompatActivity {
 
         if (btnPip != null) {
             btnPip.setOnClickListener(v -> enterPipMode());
+            btnPip.setContentDescription("Mở PiP; nhấn giữ để chọn tỷ lệ và tự thu nhỏ");
+            android.view.View.OnLongClickListener options=v->{showPipOptions();return true;};btnPip.setOnLongClickListener(options);findViewById(R.id.btnWebPip).setOnLongClickListener(options);
         }
 
         if (playerView != null) {
@@ -465,6 +478,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void downloadVideo() {
+        if(!playbackAuthorized)return;
         if (videoUrl == null || videoUrl.isEmpty()) {
             Toast.makeText(this, "Không có URL video để tải!", Toast.LENGTH_SHORT).show();
             return;
@@ -1201,20 +1215,22 @@ public class PlayerActivity extends AppCompatActivity {
                 ratio = size.width * size.pixelWidthHeightRatio / size.height;
             }
         }
+        int aspect=getSharedPreferences("player_preferences",MODE_PRIVATE).getInt("pip_aspect",0);if(aspect==1)ratio=16f/9f;else if(aspect==2)ratio=9f/16f;
         ratio = Math.max(1f / 2.39f, Math.min(2.39f, ratio));
         PictureInPictureParams.Builder builder = new PictureInPictureParams.Builder()
                 .setAspectRatio(new Rational((int) Math.ceil(ratio * 10000), 10000));
         Rect bounds = new Rect();
         if (framePlayerContainer.getGlobalVisibleRect(bounds)) builder.setSourceRectHint(bounds);
-        if (!isWebViewMode) {
+        {
             RemoteAction action = createPlayPauseAction();
-            if (action != null) builder.setActions(Collections.singletonList(action));
+            if (action != null) builder.setActions(getMaxNumPictureInPictureActions()>=3?java.util.Arrays.asList(createSeekAction(false),action,createSeekAction(true)):Collections.singletonList(action));
         }
+        if(Build.VERSION.SDK_INT>=31)builder.setAutoEnterEnabled(getSharedPreferences("player_preferences",MODE_PRIVATE).getBoolean("pip_auto",true)&&!isFinishing()&&((player!=null&&player.isPlaying())||(isWebViewMode&&webWatching))).setSeamlessResizeEnabled(!isWebViewMode);
         return builder.build();
     }
 
     private void enterPipMode() {
-        if (!supportsPip() || isInPictureInPictureMode()) return;
+        if (!supportsPip()){Toast.makeText(this,"Thiết bị không hỗ trợ PiP.",Toast.LENGTH_SHORT).show();return;}if(isInPictureInPictureMode())return;
         try {
             if (!enterPictureInPictureMode(buildPipParams())) {
                 Toast.makeText(this, "Không thể mở PiP. Kiểm tra quyền PiP của ứng dụng.", Toast.LENGTH_SHORT).show();
@@ -1225,14 +1241,14 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void updatePipParams() {
-        if (supportsPip() && isInPictureInPictureMode()) {
+        if (supportsPip()) {
             setPictureInPictureParams(buildPipParams());
         }
     }
 
     private RemoteAction createPlayPauseAction() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            boolean isPlaying = player != null && player.isPlaying();
+            boolean isPlaying = player != null ? player.isPlaying() : webWatching;
             int iconResId = isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play;
             String titleText = isPlaying ? "Pause" : "Play";
 
@@ -1247,12 +1263,19 @@ public class PlayerActivity extends AppCompatActivity {
         }
         return null;
     }
+    @RequiresApi(Build.VERSION_CODES.O)
+    private RemoteAction createSeekAction(boolean forward){
+        String command=forward?"forward":"rewind";Intent intent=new Intent(ACTION_MEDIA_CONTROL).setPackage(getPackageName()).putExtra("command",command);
+        PendingIntent pending=PendingIntent.getBroadcast(this,forward?102:101,intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        RemoteAction action=new RemoteAction(Icon.createWithResource(this,forward?R.drawable.ic_forward_10:R.drawable.ic_rewind_10),forward?"Tới 10 giây":"Lùi 10 giây",command,pending);action.setEnabled(player!=null?player.isCurrentMediaItemSeekable():webDuration>0);return action;
+    }
+    private void showPipOptions(){boolean auto=getSharedPreferences("player_preferences",MODE_PRIVATE).getBoolean("pip_auto",true);CinemaDialogs.menu(this,"Tùy chọn cửa sổ nổi",new String[]{"Tỷ lệ theo video","Ngang 16:9","Dọc 9:16",auto?"Tắt tự PiP khi bấm Home":"Bật tự PiP khi bấm Home"},which->{if(which==3)getSharedPreferences("player_preferences",MODE_PRIVATE).edit().putBoolean("pip_auto",!auto).apply();else getSharedPreferences("player_preferences",MODE_PRIVATE).edit().putInt("pip_aspect",which).apply();updatePipParams();});}
 
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if ((player != null && player.isPlaying()) || isWebViewMode) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT<31) {
+            if (getSharedPreferences("player_preferences",MODE_PRIVATE).getBoolean("pip_auto",true)&&((player != null && player.isPlaying()) || (isWebViewMode&&webWatching))) {
                 enterPipMode();
             }
         }
@@ -1277,6 +1300,7 @@ public class PlayerActivity extends AppCompatActivity {
             playerView.setUseController(true);
 
             if (layoutTopBar != null) layoutTopBar.bringToFront();
+            if(player!=null&&player.getPlaybackState()==Player.STATE_ENDED)offerNextEpisode();
         }
         ViewCompat.requestApplyInsets(findViewById(R.id.playerContainer));
     }
@@ -1289,7 +1313,7 @@ public class PlayerActivity extends AppCompatActivity {
             if(!viewerActive){ViewerLibrary.save(viewerVideo,viewerEpisode,webPosition,webDuration).addOnFailureListener(e->showHistoryError());return;}
             wvYouTubePlayer.evaluateJavascript("(function(){try{var p=window.player,v=document.querySelector('video');if(p&&p.getDuration)return [p.getCurrentTime(),p.getDuration(),p.getPlayerState()==0,p.getPlayerState()==1];if(v)return [v.currentTime,v.duration,v.ended,!v.paused&&!v.ended];}catch(e){}return null;})()", result->{
                 if(isFinishing())return;
-                try{org.json.JSONArray data=new org.json.JSONArray(result);webWatching=data.optBoolean(3);webPosition=(long)(data.getDouble(0)*1000);webDuration=(long)(data.getDouble(1)*1000);
+                try{org.json.JSONArray data=new org.json.JSONArray(result);webWatching=data.optBoolean(3);updatePipParams();webPosition=(long)(data.getDouble(0)*1000);webDuration=(long)(data.getDouble(1)*1000);
                     if(webResume>=0){long target=webResume;webResume=-1;wvYouTubePlayer.evaluateJavascript("(function(){var p=window.player,v=document.querySelector('video');if(p&&p.seekTo)p.seekTo("+(target/1000.0)+",true);else if(v)v.currentTime="+(target/1000.0)+";})()",null);return;}
                     ViewerLibrary.save(viewerVideo,viewerEpisode,webPosition,webDuration).addOnFailureListener(e->showHistoryError());if(data.getBoolean(2))offerNextEpisode();
                 }catch(Exception ignored){}
@@ -1297,6 +1321,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
     private void restoreViewerProgress(){
+        if(!playbackAuthorized)return;
         if(com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser()==null)return;
         if(resumeChecked||viewerVideo==null||viewerEpisode==null)return;
         resumeChecked=true; resumePending=true;
@@ -1328,6 +1353,7 @@ public class PlayerActivity extends AppCompatActivity {
         for(int direction:new int[]{-1,1}){android.widget.Button button=new android.widget.Button(this);button.setText(direction<0?"Tập trước":"Tập tiếp theo");Episode ep=adjacentEpisode(direction);button.setEnabled(ep!=null);button.setOnClickListener(v->changeEpisode(ep));row.addView(button,new android.widget.LinearLayout.LayoutParams(0,-2,1));}
     }
     private void offerNextEpisode(){
+        if(Build.VERSION.SDK_INT>=26&&isInPictureInPictureMode())return;
         Episode ep=adjacentEpisode(1);if(ep==null||nextShown||!viewerActive)return;nextShown=true;
         nextDialog=new com.google.android.material.dialog.MaterialAlertDialogBuilder(this).setTitle("Đã hết tập")
             .setMessage("Chuyển tập sau 5 giây").setPositiveButton("Xem ngay",(d,w)->{if(nextTimer!=null)nextTimer.cancel();changeEpisode(ep);})
@@ -1359,7 +1385,7 @@ public class PlayerActivity extends AppCompatActivity {
         super.onStart();
         viewerActive=true;lastViewTick=android.os.SystemClock.elapsedRealtime();wasWatching=false;viewerHandler.removeCallbacks(viewerTick); viewerHandler.postDelayed(viewerTick,1000);
         restoreViewerProgress();
-        if (!isWebViewMode && player == null && videoUrl != null && !videoUrl.isEmpty()) {
+        if (playbackAuthorized && !isWebViewMode && player == null && videoUrl != null && !videoUrl.isEmpty()) {
             playDirectMediaVideo();
         }
         if (isWebViewMode && wvYouTubePlayer != null) {

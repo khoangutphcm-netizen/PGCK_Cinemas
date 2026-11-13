@@ -33,6 +33,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.zxing:core:3.5.4")
     implementation(libs.activity.ktx)
     implementation(libs.appcompat)
     implementation(libs.constraintlayout)

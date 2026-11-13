@@ -47,7 +47,14 @@ public class PopularVideoAdapter extends RecyclerView.Adapter<PopularVideoAdapte
         Video video = videoList.get(position);
 
         // Hiển thị tiêu đề và mô tả
-        holder.tvPopularTitle.setText(video.getTitle());
+        holder.tvPopularTitle.setText(video.getTitle()+(video.isPremium()?" · PREMIUM":""));
+        holder.tvPopularTitle.setTitleColors(video.getTitleColor(), video.getTitleGradientEnd());
+        List<String> metadata = new ArrayList<>();
+        if (!video.getReleaseYear().isEmpty()) metadata.add(video.getReleaseMonth().isEmpty()
+                ? video.getReleaseYear() : "Tháng " + video.getReleaseMonth() + "/" + video.getReleaseYear());
+        if (!video.getGenres().isEmpty()) metadata.add(video.getGenresString());
+        holder.tvPopularMeta.setText(android.text.TextUtils.join("  •  ", metadata));
+        holder.tvPopularMeta.setVisibility(metadata.isEmpty() ? View.GONE : View.VISIBLE);
         if (video.getDescription() != null && !video.getDescription().isEmpty()) {
             holder.tvPopularDesc.setText(video.getDescription());
             holder.tvPopularDesc.setVisibility(View.VISIBLE);
@@ -82,7 +89,8 @@ public class PopularVideoAdapter extends RecyclerView.Adapter<PopularVideoAdapte
 
     public static class PopularViewHolder extends RecyclerView.ViewHolder {
         ImageView imgPopularBanner;
-        TextView tvPopularTitle;
+        MovieTitleView tvPopularTitle;
+        TextView tvPopularMeta;
         TextView tvPopularDesc;
         Button btnWatchNow;
 
@@ -90,6 +98,7 @@ public class PopularVideoAdapter extends RecyclerView.Adapter<PopularVideoAdapte
             super(itemView);
             imgPopularBanner = itemView.findViewById(R.id.imgPopularBanner);
             tvPopularTitle = itemView.findViewById(R.id.tvPopularTitle);
+            tvPopularMeta = itemView.findViewById(R.id.tvPopularMeta);
             tvPopularDesc = itemView.findViewById(R.id.tvPopularDesc);
             btnWatchNow = itemView.findViewById(R.id.btnWatchNow);
         }
